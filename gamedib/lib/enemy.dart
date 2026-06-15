@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
-import 'package:flame/effects.dart';
 import 'package:flutter/material.dart';
 import 'endless_runner_game.dart';
 
@@ -14,7 +13,8 @@ class Enemy extends PositionComponent with HasGameRef<EndlessRunnerGame>, Collis
   double patrolRange = 150.0;
   late double startX;
   bool isDead = false;
-  int health = 3; // 3 hits to die as requested
+  int health = 3;
+  int _flashFrames = 0;
 
   Enemy({required Vector2 position, required this.type}) : super(position: position, size: Vector2(40, 40)) {
     startX = position.x;
@@ -29,6 +29,7 @@ class Enemy extends PositionComponent with HasGameRef<EndlessRunnerGame>, Collis
   @override
   void render(Canvas canvas) {
     if (isDead) return;
+    if (_flashFrames > 0 && _flashFrames % 2 == 0) return;
 
     if (type == EnemyType.flying) {
       // Flying Eye-Bat
@@ -60,6 +61,11 @@ class Enemy extends PositionComponent with HasGameRef<EndlessRunnerGame>, Collis
   void update(double dt) {
     if (gameRef.isGameOver || isDead) return;
     super.update(dt);
+    if (_flashFrames > 0) _flashFrames--;
+    if (gameRef.player.position.x - position.x > 1200) {
+      removeFromParent();
+      return;
+    }
 
     if (type == EnemyType.walking) {
       position.x += direction * speed * dt;
@@ -77,18 +83,12 @@ class Enemy extends PositionComponent with HasGameRef<EndlessRunnerGame>, Collis
   }
 
   void takeDamage() {
+    if (isDead) return;
     health--;
     if (health <= 0) {
       die();
     } else {
-      // Flash effect on hit
-      add(
-        ColorEffect(
-          Colors.white,
-          EffectController(duration: 0.1, reverseDuration: 0.1),
-          opacityTo: 0.8,
-        ),
-      );
+      _flashFrames = 8;
     }
   }
 

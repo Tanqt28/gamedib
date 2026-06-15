@@ -32,7 +32,9 @@ class Potion extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
   @override
   void update(double dt) {
     super.update(dt);
-    // Potion is now static in the world.
+    if (gameRef.player.position.x - position.x > 1200) {
+      removeFromParent();
+    }
   }
 
   void collect() {

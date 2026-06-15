@@ -29,7 +29,9 @@ class Chest extends PositionComponent with HasGameRef<EndlessRunnerGame>, Collis
   @override
   void update(double dt) {
     super.update(dt);
-    // Chest is now static in the world coordinate system.
+    if (gameRef.player.position.x - position.x > 1200) {
+      removeFromParent();
+    }
   }
 
   void collect() {

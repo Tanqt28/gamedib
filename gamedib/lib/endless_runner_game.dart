@@ -12,6 +12,7 @@ import 'enemy.dart';
 import 'potion.dart';
 import 'chest.dart';
 import 'goal.dart';
+import 'decoration.dart';
 
 class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbacks, KeyboardEvents {
   late Player player;
@@ -57,9 +58,9 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
     try {
       parallaxBackground = await loadParallaxComponent(
         [
-          ParallaxImageData('bg_layer_1.jpeg'),
-          ParallaxImageData('bg_layer_2.jpeg'),
-          ParallaxImageData('bg_layer_3.jpg'),
+          ParallaxImageData('bg_layer_1.png'),
+          ParallaxImageData('bg_layer_2.png'),
+          ParallaxImageData('bg_layer_3.png'),
         ],
         baseVelocity: Vector2(0, 0),
         velocityMultiplierDelta: Vector2(1.2, 0),
@@ -146,6 +147,7 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
     world.children.whereType<Goal>().forEach((g) => g.removeFromParent());
     world.children.whereType<Potion>().forEach((p) => p.removeFromParent());
     world.children.whereType<Chest>().forEach((c) => c.removeFromParent());
+    world.children.whereType<GameDecoration>().forEach((d) => d.removeFromParent());
 
     levelLength = 4000.0 + (currentLevel * 2000.0);
     _lastGeneratedX = 0;
@@ -156,7 +158,27 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
     while (_lastGeneratedX < targetX && _lastGeneratedX < levelLength + 1000) {
       // Ground
       world.add(Platform(position: Vector2(_lastGeneratedX, size.y - 100), size: Vector2(400, 100), isGround: true));
-      
+
+      // Ground decorations (rocks, mushrooms, bushes)
+      if (_lastGeneratedX > 200 && _random.nextDouble() > 0.45) {
+        final groundDecoTypes = [DecorationType.mushroom, DecorationType.rock, DecorationType.bush];
+        final type = groundDecoTypes[_random.nextInt(groundDecoTypes.length)];
+        world.add(GameDecoration(
+          position: Vector2(_lastGeneratedX + 30 + _random.nextDouble() * 320, size.y - 140),
+          size: Vector2(40, 40),
+          type: type,
+        ));
+      }
+
+      // Clouds in the sky
+      if (_random.nextDouble() > 0.5) {
+        world.add(GameDecoration(
+          position: Vector2(_lastGeneratedX + _random.nextDouble() * 400, size.y * 0.1 + _random.nextDouble() * 100),
+          size: Vector2(90, 45),
+          type: DecorationType.cloud,
+        ));
+      }
+
       // Floating platforms
       if (_lastGeneratedX > 400 && _lastGeneratedX < levelLength) {
         double y = size.y - 200 - _random.nextInt(150).toDouble();
@@ -168,6 +190,19 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
         }
         if (_random.nextDouble() > 0.6) {
           world.add(Enemy(position: Vector2(_lastGeneratedX + 100 + w / 2, y - 40), type: _random.nextBool() ? EnemyType.walking : EnemyType.flying));
+        }
+
+        // Potions (uncommon)
+        if (_random.nextDouble() > 0.8) {
+          world.add(Potion(
+            position: Vector2(_lastGeneratedX + 100 + _random.nextDouble() * w, y - 50),
+            type: _random.nextBool() ? PotionType.health : PotionType.invincibility,
+          ));
+        }
+
+        // Chests (rare)
+        if (_random.nextDouble() > 0.92) {
+          world.add(Chest(position: Vector2(_lastGeneratedX + 100 + w / 2, y - 60)));
         }
       }
       _lastGeneratedX += 400;
@@ -192,9 +227,10 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
       _generateNextChunk(player.position.x + 2000);
     }
 
-    // Parallax background movement based on player velocity
+    // Keep parallax anchored to the viewport and scroll with player movement
+    parallaxBackground.position = camera.viewfinder.position - size / 2;
     if (parallaxBackground.parallax != null) {
-      parallaxBackground.parallax!.baseVelocity.x = player.velocity.x / 15;
+      parallaxBackground.parallax!.baseVelocity.x = horizontalInput * player.moveSpeed / 15;
     }
 
     // Spawn goal at the end
@@ -238,10 +274,11 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
     elapsedTime = 0;
     isGameOver = false;
     horizontalInput = 0;
-    
+
+    objectiveText.text = 'Objective: Reach the flag!';
     scoreText.position = Vector2(size.x - 20, 20);
     scoreText.anchor = Anchor.topRight;
-    
+
     _startLevel();
   }
 

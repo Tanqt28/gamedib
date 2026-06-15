@@ -63,12 +63,8 @@ class Platform extends PositionComponent with HasGameRef<EndlessRunnerGame> {
   @override
   void update(double dt) {
     super.update(dt);
-    // Removed auto-scroll logic. Platform stays in world coordinates.
-    
-    // Optional: Cull platforms that are way behind the camera if needed for performance,
-    // but for discrete levels, we can just keep them or cull by distance from player.
-    if (gameRef.player.position.x - position.x > 1500) {
-      //removeFromParent(); // Only if we want true infinite generation
+    if (gameRef.player.position.x - position.x > 1200) {
+      removeFromParent();
     }
   }
 }

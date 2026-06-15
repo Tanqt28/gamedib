@@ -7,6 +7,7 @@ import 'platform.dart';
 import 'coin.dart';
 import 'enemy.dart';
 import 'potion.dart';
+import 'chest.dart';
 import 'goal.dart';
 
 class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, CollisionCallbacks {
@@ -22,6 +23,7 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
   bool isAttacking = false;
   double attackDuration = 0.25;
   double attackTimer = 0;
+  final Set<Enemy> _hitThisAttack = {};
 
   bool isInvulnerable = false;
   double invulnerableDuration = 1.5;
@@ -87,6 +89,7 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
       attackTimer -= dt;
       if (attackTimer <= 0) {
         isAttacking = false;
+        _hitThisAttack.clear();
       }
     }
 
@@ -99,9 +102,21 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
       }
     }
 
-    // Death by falling
+    // Fell off the world
     if (position.y > 1200) {
-      gameRef.gameOver();
+      gameRef.lives--;
+      if (gameRef.lives <= 0) {
+        gameRef.gameOver();
+      } else {
+        position.x = (gameRef.camera.viewfinder.position.x - 300).clamp(100.0, double.maxFinite);
+        position.y = 300;
+        velocity = Vector2.zero();
+        isGrounded = false;
+        isInvulnerable = true;
+        isFlashed = true;
+        invulnerableTimer = invulnerableDuration;
+        flashTimer = 0;
+      }
     }
 
     if (position.x < 20) position.x = 20;
@@ -122,15 +137,20 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
       other.collect();
     } else if (other is Enemy) {
       if (isAttacking) {
-        other.takeDamage();
-        other.position.x += 40;
+        if (!_hitThisAttack.contains(other)) {
+          other.takeDamage();
+          other.position.x += 150;
+          _hitThisAttack.add(other);
+        }
       } else if (velocity.y > 0 && (position.y + size.y / 2) < other.position.y) {
         other.die();
-        velocity.y = jumpVelocity * 0.7; 
+        velocity.y = jumpVelocity * 0.7;
       } else {
         takeDamage();
       }
     } else if (other is Potion) {
+      other.collect();
+    } else if (other is Chest) {
       other.collect();
     } else if (other is Goal) {
       other.reach();
@@ -157,6 +177,7 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
     if (!isAttacking) {
       isAttacking = true;
       attackTimer = attackDuration;
+      _hitThisAttack.clear();
     }
   }
 
