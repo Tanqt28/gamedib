@@ -34,6 +34,10 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
   double horizontalInput = 0;
   final math.Random _random = math.Random();
 
+  // Explicit platform registry so _resolveGrounding can iterate without
+  // touching Flame's ComponentSet (which doesn't expose pending components).
+  final List<Platform> platforms = [];
+
   ParallaxComponent? parallaxBackground;
   double _lastGeneratedX = 0;
 
@@ -172,7 +176,8 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
     player.position = Vector2(100, size.y - 100 - player.size.y / 2);
     _maxPlayerX = 0;
 
-    world.children.whereType<Platform>().forEach((p) => p.removeFromParent());
+    for (final p in platforms) p.removeFromParent();
+    platforms.clear();
     world.children.whereType<Coin>().forEach((c) => c.removeFromParent());
     world.children.whereType<Enemy>().forEach((e) => e.removeFromParent());
     world.children.whereType<Goal>().forEach((g) => g.removeFromParent());
@@ -184,9 +189,14 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
     _generateNextChunk(2000);
   }
 
+  void _addPlatform(Platform p) {
+    platforms.add(p);
+    world.add(p);
+  }
+
   void _generateNextChunk(double targetX) {
     while (_lastGeneratedX < targetX) {
-      world.add(Platform(
+      _addPlatform(Platform(
         position: Vector2(_lastGeneratedX, size.y - 100),
         size: Vector2(400, 100),
         isGround: true,
@@ -213,7 +223,7 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
       if (_lastGeneratedX > 400) {
         final y = size.y - 200 - _random.nextInt(150).toDouble();
         final w = 150 + _random.nextInt(150).toDouble();
-        world.add(Platform(position: Vector2(_lastGeneratedX + 100, y), size: Vector2(w, 40)));
+        _addPlatform(Platform(position: Vector2(_lastGeneratedX + 100, y), size: Vector2(w, 40)));
 
         if (_random.nextDouble() > 0.4) {
           world.add(Coin(position: Vector2(_lastGeneratedX + 100 + w / 2, y - 40)));

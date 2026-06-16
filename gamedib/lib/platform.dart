@@ -64,6 +64,7 @@ class Platform extends PositionComponent with HasGameRef<EndlessRunnerGame> {
   void update(double dt) {
     super.update(dt);
     if (gameRef.player.position.x - position.x > 1200) {
+      gameRef.platforms.remove(this);
       removeFromParent();
     }
   }

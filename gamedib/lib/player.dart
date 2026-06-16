@@ -31,9 +31,6 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
   bool isFlashed = false;
   double flashTimer = 0;
 
-  // Set of platforms currently in contact — drives isGrounded robustly
-  final Set<Platform> _groundedPlatforms = {};
-
   Player() {
     position = Vector2(100, 400);
     size = Vector2(45, 55);
@@ -49,25 +46,71 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
   void render(Canvas canvas) {
     if (isFlashed && (flashTimer * 10).toInt() % 2 == 0) return;
 
-    final bodyPaint = Paint()..color = isInvulnerable ? Colors.blue : Colors.green;
-    canvas.drawRect(Rect.fromLTWH(-17.5, -12.5, 35, 40), bodyPaint);
+    // Flame positions the render canvas at the component's top-left even when
+    // anchor = Anchor.center. Shift to center so all draw calls use center-relative coords.
+    canvas.translate(size.x / 2, size.y / 2);
 
-    final headPaint = Paint()..color = const Color(0xFFFFDBAC);
-    canvas.drawRect(Rect.fromLTWH(-12.5, -27.5, 25, 20), headPaint);
+    final skin      = Paint()..color = const Color(0xFFFFDBAC);
+    final hair      = Paint()..color = const Color(0xFF3E2000);
+    final tunic     = Paint()..color = isInvulnerable ? const Color(0xFF1565C0) : const Color(0xFF2E7D32);
+    final pants     = Paint()..color = const Color(0xFF1A237E);
+    final boot      = Paint()..color = const Color(0xFF3E2723);
+    final belt      = Paint()..color = const Color(0xFF6D4C41);
+    final eye       = Paint()..color = const Color(0xFF212121);
+    final blade     = Paint()..color = const Color(0xFFCFD8DC);
+    final handle    = Paint()..color = const Color(0xFF795548);
+    final guard     = Paint()..color = const Color(0xFFFDD835);
+    final shine     = Paint()..color = Colors.white.withOpacity(0.55);
 
-    final hairPaint = Paint()..color = Colors.brown;
-    canvas.drawRect(Rect.fromLTWH(-12.5, -27.5, 25, 5), hairPaint);
+    // Head  (top aligned to hitbox top: -27.5)
+    canvas.drawRect(Rect.fromLTWH(-9, -27.5, 18, 16.5), skin);
+    // Hair (fills hitbox top)
+    canvas.drawRect(Rect.fromLTWH(-9, -27.5, 18, 6.5), hair);
+    // Side hair
+    canvas.drawRect(Rect.fromLTWH(-9, -21, 3, 5), hair);
+    // Eyes
+    canvas.drawRect(Rect.fromLTWH(-7, -20, 4, 3), eye);
+    canvas.drawRect(Rect.fromLTWH(3,  -20, 4, 3), eye);
+    canvas.drawRect(Rect.fromLTWH(-6, -20, 1, 1), Paint()..color = Colors.white);
+    canvas.drawRect(Rect.fromLTWH(4,  -20, 1, 1), Paint()..color = Colors.white);
 
-    final swordPaint = Paint()..color = Colors.grey;
+    // Tunic / body
+    canvas.drawRect(Rect.fromLTWH(-11, -11, 22, 20), tunic);
+    // Neck seam
+    canvas.drawRect(Rect.fromLTWH(-4, -11, 8, 3), skin);
+
+    // Belt
+    canvas.drawRect(Rect.fromLTWH(-11, 7, 22, 4), belt);
+    // Belt buckle
+    canvas.drawRect(Rect.fromLTWH(-3, 7, 6, 4), guard);
+
+    // Legs
+    canvas.drawRect(Rect.fromLTWH(-11, 11, 9, 11), pants);
+    canvas.drawRect(Rect.fromLTWH(2,   11, 9, 11), pants);
+
+    // Boots (bottom exactly at hitbox bottom: y = 27.5 = size.y/2)
+    canvas.drawRect(Rect.fromLTWH(-12, 20, 10, 7.5), boot);
+    canvas.drawRect(Rect.fromLTWH(2,   20, 10, 7.5), boot);
+    // Boot highlight
+    canvas.drawRect(Rect.fromLTWH(-11, 21, 3, 2), Paint()..color = Colors.white.withOpacity(0.3));
+    canvas.drawRect(Rect.fromLTWH(3,   21, 3, 2), Paint()..color = Colors.white.withOpacity(0.3));
+
+    // Sword
     if (isAttacking) {
       canvas.save();
-      canvas.translate(15, 0);
-      canvas.rotate(0.5);
-      canvas.drawRect(Rect.fromLTWH(0, -5, 40, 10), swordPaint);
-      canvas.drawRect(Rect.fromLTWH(0, -5, 45, 12), Paint()..color = Colors.white.withOpacity(0.4));
+      canvas.translate(13, 0);
+      canvas.rotate(0.45);
+      canvas.drawRect(Rect.fromLTWH(0, -3, 38, 5), blade);   // blade
+      canvas.drawRect(Rect.fromLTWH(-4, -6, 6, 11), guard);  // guard
+      canvas.drawRect(Rect.fromLTWH(-9, -3, 7, 5), handle);  // handle
+      canvas.drawRect(Rect.fromLTWH(1, -2, 34, 2), shine);   // edge shine
       canvas.restore();
     } else {
-      canvas.drawRect(Rect.fromLTWH(15, 5, 20, 5), swordPaint);
+      // Vertical resting position
+      canvas.drawRect(Rect.fromLTWH(12, -16, 5, 27), blade);
+      canvas.drawRect(Rect.fromLTWH(9,   4,  11, 4), guard);
+      canvas.drawRect(Rect.fromLTWH(13,  8,  4,  9), handle);
+      canvas.drawRect(Rect.fromLTWH(13, -16, 1, 20), shine);
     }
   }
 
@@ -75,10 +118,6 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
   void update(double dt) {
     if (gameRef.isGameOver) return;
     super.update(dt);
-
-    // Drop stale refs to platforms removed from the world
-    _groundedPlatforms.removeWhere((p) => !p.isMounted);
-    isGrounded = _groundedPlatforms.isNotEmpty;
 
     position.x += gameRef.horizontalInput * moveSpeed * dt;
 
@@ -96,6 +135,9 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
 
     position.y += velocity.y * dt;
 
+    // Direct AABB ground check — more reliable than collision callbacks
+    _resolveGrounding();
+
     if (isAttacking) {
       attackTimer -= dt;
       if (attackTimer <= 0) {
@@ -112,7 +154,6 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
       }
     }
 
-    // Fell off the world — respawn or game over
     if (position.y > 1200) {
       gameRef.lives--;
       if (gameRef.lives <= 0) {
@@ -122,7 +163,6 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
         position.y = gameRef.size.y - 100 - size.y / 2;
         velocity = Vector2.zero();
         isGrounded = false;
-        _groundedPlatforms.clear();
         isInvulnerable = true;
         isFlashed = true;
         invulnerableTimer = invulnerableDuration;
@@ -133,24 +173,50 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
     if (position.x < size.x / 2) position.x = size.x / 2;
   }
 
+  // Per-frame AABB collision resolution against the explicit platforms list.
+  // Handles both ground and floating platforms — ground tiles are included so
+  // the snap always uses the actual platform.position.y rather than the
+  // potentially stale gameRef.size.y value.
+  void _resolveGrounding() {
+    final playerTop    = position.y - size.y / 2;
+    final playerBottom = position.y + size.y / 2;
+    final playerLeft   = position.x - size.x / 2;
+    final playerRight  = position.x + size.x / 2;
+
+    isGrounded = false;
+
+    for (final platform in gameRef.platforms) {
+      final platLeft   = platform.position.x;
+      final platRight  = platform.position.x + platform.size.x;
+      final platTop    = platform.position.y;
+      final platBottom = platform.position.y + platform.size.y;
+
+      if (playerRight <= platLeft || playerLeft >= platRight) continue;
+
+      // Land on top (falling down onto platform)
+      if (velocity.y >= 0 && playerBottom >= platTop && playerBottom <= platBottom) {
+        position.y = platTop - size.y / 2;
+        velocity.y = 0;
+        isGrounded = true;
+        jumpCount = 0;
+        return;
+      }
+
+      // Bounce off underside — only for floating platforms, not the solid ground
+      if (!platform.isGround && velocity.y < 0 && playerTop >= platTop && playerTop <= platBottom) {
+        position.y = platBottom + size.y / 2;
+        velocity.y = 0;
+        return;
+      }
+    }
+  }
+
   @override
   void onCollision(Set<Vector2> intersectionPoints, PositionComponent other) {
     super.onCollision(intersectionPoints, other);
 
-    if (other is Platform) {
-      if (velocity.y >= 0) {
-        final playerBottom = position.y + size.y / 2;
-        final platformTop = other.position.y;
-        if (playerBottom <= platformTop + 40) {
-          // +1 keeps a 1px overlap so onCollisionEnd doesn't fire while standing still
-          position.y = platformTop - size.y / 2 + 1.0;
-          velocity.y = 0;
-          _groundedPlatforms.add(other);
-          isGrounded = true;
-          jumpCount = 0;
-        }
-      }
-    } else if (other is Coin) {
+    // Platform grounding is handled by _resolveGrounding(); only handle collectibles/enemies here
+    if (other is Coin) {
       other.collect();
     } else if (other is Enemy) {
       if (isAttacking) {
@@ -160,7 +226,6 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
         other.die();
         velocity.y = jumpVelocity * 0.7;
         isGrounded = false;
-        _groundedPlatforms.clear();
       } else {
         takeDamage();
       }
@@ -173,20 +238,11 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
     }
   }
 
-  @override
-  void onCollisionEnd(PositionComponent other) {
-    super.onCollisionEnd(other);
-    if (other is Platform) {
-      _groundedPlatforms.remove(other);
-    }
-  }
-
   void jump() {
     if (isGrounded) {
       velocity.y = jumpVelocity;
       jumpCount = 1;
       isGrounded = false;
-      _groundedPlatforms.clear();
     }
   }
 
@@ -211,7 +267,6 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
       position.x -= (scale.x > 0 ? 60 : -60);
       velocity.y = -400;
       isGrounded = false;
-      _groundedPlatforms.clear();
     }
   }
 
@@ -224,6 +279,5 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
     isFlashed = false;
     jumpCount = 0;
     scale.x = scale.x.abs();
-    _groundedPlatforms.clear();
   }
 }
