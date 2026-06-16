@@ -29,6 +29,8 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
   double elapsedTime = 0.0;
   double _maxPlayerX = 0;
 
+  int selectedMap = 1;
+
   double horizontalInput = 0;
   final math.Random _random = math.Random();
 
@@ -47,20 +49,22 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
 
     _setupUI();
 
-    // Show main menu — game starts when the player clicks Play
     overlays.add('main_menu');
   }
 
   Future<void> _setupBackground() async {
+    // Each map uses its own single opaque image — stacking them hides all but the top one.
+    final imageFile = switch (selectedMap) {
+      2 => 'bg_layer_2.png',
+      3 => 'bg_layer_3.png',
+      _ => 'bg_layer_1.png',
+    };
+
     try {
       parallaxBackground = await loadParallaxComponent(
-        [
-          ParallaxImageData('bg_layer_1.png'),
-          ParallaxImageData('bg_layer_2.png'),
-          ParallaxImageData('bg_layer_3.png'),
-        ],
-        baseVelocity: Vector2(0, 0),
-        velocityMultiplierDelta: Vector2(1.2, 0),
+        [ParallaxImageData(imageFile)],
+        baseVelocity: Vector2(20, 0),
+        velocityMultiplierDelta: Vector2(1.0, 0),
       );
       if (parallaxBackground != null) {
         parallaxBackground!.priority = -10;
@@ -120,8 +124,14 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
     camera.viewport.add(scoreText);
   }
 
-  void startGame() {
+  Future<void> selectMap(int mapIndex) async {
+    selectedMap = mapIndex;
+    await startGame();
+  }
+
+  Future<void> startGame() async {
     overlays.remove('main_menu');
+    overlays.remove('map_select');
     overlays.remove('game_over');
 
     lives = 3;
@@ -130,8 +140,15 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
     elapsedTime = 0;
     isGameOver = false;
     horizontalInput = 0;
-    isStarted = true;
 
+    parallaxBackground?.removeFromParent();
+    parallaxBackground = null;
+    // Yield one event-loop turn so Flame's lifecycle can remove the old component
+    // before the new one is added in _setupBackground().
+    await Future.delayed(Duration.zero);
+    await _setupBackground();
+
+    isStarted = true;
     _startLevel();
   }
 
@@ -143,7 +160,6 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
     isStarted = false;
     horizontalInput = 0;
 
-    // Reset stats so the menu shows a fresh state
     lives = 3;
     score = 0;
     coinCount = 0;
@@ -251,17 +267,32 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
 
   @override
   Color backgroundColor() {
-    const day = Color(0xFF87CEEB);
-    const sunset = Color(0xFFFF7043);
-    const dusk = Color(0xFF7B1FA2);
-    const night = Color(0xFF0D1B4B);
+    switch (selectedMap) {
+      case 2:
+        // Forest: warm blue sky → golden afternoon → deep orange dusk
+        const sky = Color(0xFF87CEEB);
+        const golden = Color(0xFFFFB74D);
+        const dusk = Color(0xFFE64A19);
+        if (_maxPlayerX < 4000) {
+          return Color.lerp(sky, golden, _maxPlayerX / 4000)!;
+        }
+        return Color.lerp(golden, dusk, ((_maxPlayerX - 4000) / 6000).clamp(0.0, 1.0))!;
 
-    if (_maxPlayerX < 3000) {
-      return Color.lerp(day, sunset, _maxPlayerX / 3000)!;
-    } else if (_maxPlayerX < 7000) {
-      return Color.lerp(sunset, dusk, (_maxPlayerX - 3000) / 4000)!;
-    } else {
-      return Color.lerp(dusk, night, ((_maxPlayerX - 7000) / 5000).clamp(0.0, 1.0))!;
+      case 3:
+        // Valley: clear blue → warm amber → dusky pink
+        const clear = Color(0xFF81D4FA);
+        const amber = Color(0xFFFFCC02);
+        const pink = Color(0xFFE91E63);
+        if (_maxPlayerX < 5000) {
+          return Color.lerp(clear, amber, _maxPlayerX / 5000)!;
+        }
+        return Color.lerp(amber, pink, ((_maxPlayerX - 5000) / 5000).clamp(0.0, 1.0))!;
+
+      default:
+        // Mountains (map 1): deep purple twilight → midnight blue
+        const twilight = Color(0xFF4A148C);
+        const night = Color(0xFF0D1B4B);
+        return Color.lerp(twilight, night, (_maxPlayerX / 10000).clamp(0.0, 1.0))!;
     }
   }
 
@@ -276,7 +307,9 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
   KeyEventResult onKeyEvent(KeyEvent event, Set<LogicalKeyboardKey> keysPressed) {
     if (!isStarted || isGameOver) {
       if (event is KeyDownEvent && keysPressed.contains(LogicalKeyboardKey.space)) {
-        startGame();
+        overlays.remove('main_menu');
+        overlays.remove('game_over');
+        overlays.add('map_select');
       }
       return KeyEventResult.handled;
     }
@@ -294,12 +327,7 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
 
   @override
   void onTapDown(TapDownEvent event) {
-    if (!isStarted) {
-      startGame();
-    } else if (isGameOver) {
-      startGame();
-    } else {
-      player.attack();
-    }
+    if (!isStarted || isGameOver) return;
+    player.attack();
   }
 }
