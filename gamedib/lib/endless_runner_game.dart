@@ -20,34 +20,28 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
   late TextComponent coinText;
   late TextComponent livesText;
   late TextComponent timeText;
-  late TextComponent levelText;
-  late TextComponent objectiveText;
+  TextComponent? _gameOverText;
 
   int lives = 3;
   int score = 0;
   int coinCount = 0;
   bool isGameOver = false;
   double elapsedTime = 0.0;
-  int currentLevel = 1;
-  final int maxLevels = 3;
-
-  double levelLength = 5000.0; 
-  bool goalSpawned = false;
+  double _maxPlayerX = 0;
 
   double horizontalInput = 0;
-  double verticalInput = 0; 
+  double verticalInput = 0;
   final math.Random _random = math.Random();
 
-  ParallaxComponent? parallaxBackground; 
+  ParallaxComponent? parallaxBackground;
   double _lastGeneratedX = 0;
 
   @override
   Future<void> onLoad() async {
     camera.viewfinder.anchor = Anchor.center;
 
-    // Load background first with corrected .png extensions
     await _setupBackground();
-    
+
     player = Player();
     world.add(player);
     camera.follow(player);
@@ -116,14 +110,6 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
     );
     camera.viewport.add(timeText);
 
-    levelText = TextComponent(
-      text: 'LEVEL: $currentLevel',
-      position: Vector2(size.x - 20, 50),
-      anchor: Anchor.topRight,
-      textRenderer: textPaint,
-    );
-    camera.viewport.add(levelText);
-
     scoreText = TextComponent(
       text: 'SCORE: 0000',
       position: Vector2(size.x - 20, 20),
@@ -131,21 +117,14 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
       textRenderer: textPaint,
     );
     camera.viewport.add(scoreText);
-
-    objectiveText = TextComponent(
-      text: 'Objective: Reach the flag!',
-      position: Vector2(size.x / 2, 60),
-      anchor: Anchor.topCenter,
-      textRenderer: TextPaint(style: textStyle.copyWith(fontSize: 16, color: Colors.yellowAccent)),
-    );
-    camera.viewport.add(objectiveText);
   }
 
   void _startLevel() {
-    goalSpawned = false;
     player.resetPlayer();
-    
-    // Clear old components
+    // Position player with bottom exactly on ground top
+    player.position = Vector2(100, size.y - 100 - player.size.y / 2);
+    _maxPlayerX = 0;
+
     world.children.whereType<Platform>().forEach((p) => p.removeFromParent());
     world.children.whereType<Coin>().forEach((c) => c.removeFromParent());
     world.children.whereType<Enemy>().forEach((e) => e.removeFromParent());
@@ -154,28 +133,65 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
     world.children.whereType<Chest>().forEach((c) => c.removeFromParent());
     world.children.whereType<GameDecoration>().forEach((d) => d.removeFromParent());
 
-    levelLength = 4000.0 + (currentLevel * 2000.0);
     _lastGeneratedX = 0;
     _generateNextChunk(2000);
   }
 
   void _generateNextChunk(double targetX) {
-    while (_lastGeneratedX < targetX && _lastGeneratedX < levelLength + 1000) {
+    while (_lastGeneratedX < targetX) {
       // Ground
-      world.add(Platform(position: Vector2(_lastGeneratedX, size.y - 100), size: Vector2(400, 100), isGround: true));
-      
-      if (_lastGeneratedX > 400 && _lastGeneratedX < levelLength) {
-        double y = size.y - 200 - _random.nextInt(150).toDouble();
-        double w = 150 + _random.nextInt(150).toDouble();
+      world.add(Platform(
+        position: Vector2(_lastGeneratedX, size.y - 100),
+        size: Vector2(400, 100),
+        isGround: true,
+      ));
+
+      // Ground decorations
+      if (_lastGeneratedX > 200 && _random.nextDouble() > 0.45) {
+        final groundDecoTypes = [DecorationType.mushroom, DecorationType.rock, DecorationType.bush];
+        final type = groundDecoTypes[_random.nextInt(groundDecoTypes.length)];
+        world.add(GameDecoration(
+          position: Vector2(_lastGeneratedX + 30 + _random.nextDouble() * 320, size.y - 140),
+          size: Vector2(40, 40),
+          type: type,
+        ));
+      }
+
+      // Clouds
+      if (_random.nextDouble() > 0.5) {
+        world.add(GameDecoration(
+          position: Vector2(_lastGeneratedX + _random.nextDouble() * 400, size.y * 0.1 + _random.nextDouble() * 100),
+          size: Vector2(90, 45),
+          type: DecorationType.cloud,
+        ));
+      }
+
+      // Floating platforms with collectibles and enemies
+      if (_lastGeneratedX > 400) {
+        final y = size.y - 200 - _random.nextInt(150).toDouble();
+        final w = 150 + _random.nextInt(150).toDouble();
         world.add(Platform(position: Vector2(_lastGeneratedX + 100, y), size: Vector2(w, 40)));
 
         if (_random.nextDouble() > 0.4) {
           world.add(Coin(position: Vector2(_lastGeneratedX + 100 + w / 2, y - 40)));
         }
         if (_random.nextDouble() > 0.6) {
-          world.add(Enemy(position: Vector2(_lastGeneratedX + 100 + w / 2, y - 40), type: _random.nextBool() ? EnemyType.walking : EnemyType.flying));
+          world.add(Enemy(
+            position: Vector2(_lastGeneratedX + 100 + w / 2, y - 40),
+            type: _random.nextBool() ? EnemyType.walking : EnemyType.flying,
+          ));
+        }
+        if (_random.nextDouble() > 0.8) {
+          world.add(Potion(
+            position: Vector2(_lastGeneratedX + 100 + _random.nextDouble() * w, y - 50),
+            type: _random.nextBool() ? PotionType.health : PotionType.invincibility,
+          ));
+        }
+        if (_random.nextDouble() > 0.92) {
+          world.add(Chest(position: Vector2(_lastGeneratedX + 100 + w / 2, y - 60)));
         }
       }
+
       _lastGeneratedX += 400;
     }
   }
@@ -186,73 +202,77 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
     super.update(dt);
     elapsedTime += dt;
 
-    // Update UI
+    if (player.position.x > _maxPlayerX) _maxPlayerX = player.position.x;
+    score = (_maxPlayerX / 10).toInt() + coinCount * 10;
+
     livesText.text = '❤️' * (lives > 0 ? lives : 0);
     coinText.text = '$coinCount';
     timeText.text = 'TIME: ${elapsedTime.toInt()}s';
     scoreText.text = 'SCORE: ${score.toString().padLeft(4, '0')}';
-    levelText.text = 'LEVEL: $currentLevel';
 
-    // Endless generation ahead of player
-    if (player.position.x + 1500 > _lastGeneratedX && _lastGeneratedX < levelLength + 1000) {
+    // Always generate ahead of the player
+    if (player.position.x + 1500 > _lastGeneratedX) {
       _generateNextChunk(player.position.x + 2000);
     }
 
-    // Background follows camera position
     if (parallaxBackground != null) {
-      parallaxBackground!.position = camera.viewfinder.position - Vector2(size.x / 2, size.y / 2);
+      parallaxBackground!.position = camera.viewfinder.position - size / 2;
       if (parallaxBackground!.parallax != null) {
-        // Subtle background movement based on player's velocity
         parallaxBackground!.parallax!.baseVelocity.x = player.velocity.x / 20;
       }
     }
-
-    // Spawn goal at the end
-    if (!goalSpawned && player.position.x > levelLength) {
-      world.add(Goal(position: Vector2(levelLength + 300, size.y - 180)));
-      goalSpawned = true;
-    }
   }
 
-  void nextLevel() {
-    if (currentLevel < maxLevels) {
-      currentLevel++;
-      _startLevel();
-      objectiveText.text = 'Level $currentLevel: Find the Flag!';
+  @override
+  Color backgroundColor() {
+    const day = Color(0xFF87CEEB);
+    const sunset = Color(0xFFFF7043);
+    const dusk = Color(0xFF7B1FA2);
+    const night = Color(0xFF0D1B4B);
+
+    if (_maxPlayerX < 3000) {
+      return Color.lerp(day, sunset, _maxPlayerX / 3000)!;
+    } else if (_maxPlayerX < 7000) {
+      return Color.lerp(sunset, dusk, (_maxPlayerX - 3000) / 4000)!;
     } else {
-      victory();
+      return Color.lerp(dusk, night, ((_maxPlayerX - 7000) / 5000).clamp(0.0, 1.0))!;
     }
   }
 
-  void victory() {
-    isGameOver = true;
-    objectiveText.text = 'ALL LEVELS CLEARED!';
-    scoreText.text = 'FINAL SCORE: $score';
-    scoreText.position = size / 2;
-    scoreText.anchor = Anchor.center;
-  }
+  // No-op: kept for Goal component compatibility
+  void nextLevel() {}
 
   void gameOver() {
     isGameOver = true;
-    objectiveText.text = 'GAME OVER - Press Space to Restart';
-    scoreText.text = 'FINAL SCORE: $score';
-    scoreText.position = size / 2;
-    scoreText.anchor = Anchor.center;
+    _gameOverText = TextComponent(
+      text: 'GAME OVER\nSCORE: $score\nPress Space to Restart',
+      position: size / 2,
+      anchor: Anchor.center,
+      textRenderer: TextPaint(
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 28,
+          fontWeight: FontWeight.bold,
+          fontFamily: 'monospace',
+          shadows: [Shadow(color: Colors.black, blurRadius: 6, offset: Offset(2, 2))],
+        ),
+      ),
+    );
+    camera.viewport.add(_gameOverText!);
   }
 
   void resetGame() {
     lives = 3;
     score = 0;
     coinCount = 0;
-    currentLevel = 1;
     elapsedTime = 0;
     isGameOver = false;
     horizontalInput = 0;
     verticalInput = 0;
-    
-    scoreText.position = Vector2(size.x - 20, 20);
-    scoreText.anchor = Anchor.topRight;
-    
+
+    _gameOverText?.removeFromParent();
+    _gameOverText = null;
+
     _startLevel();
   }
 
