@@ -20,12 +20,12 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
   late TextComponent coinText;
   late TextComponent livesText;
   late TextComponent timeText;
-  TextComponent? _gameOverText;
 
   int lives = 3;
   int score = 0;
   int coinCount = 0;
   bool isGameOver = false;
+  bool isStarted = false;
   double elapsedTime = 0.0;
   double _maxPlayerX = 0;
 
@@ -46,7 +46,9 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
     camera.follow(player);
 
     _setupUI();
-    _startLevel();
+
+    // Show main menu — game starts when the player clicks Play
+    overlays.add('main_menu');
   }
 
   Future<void> _setupBackground() async {
@@ -118,9 +120,39 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
     camera.viewport.add(scoreText);
   }
 
+  void startGame() {
+    overlays.remove('main_menu');
+    overlays.remove('game_over');
+
+    lives = 3;
+    score = 0;
+    coinCount = 0;
+    elapsedTime = 0;
+    isGameOver = false;
+    horizontalInput = 0;
+    isStarted = true;
+
+    _startLevel();
+  }
+
+  void resetToMenu() {
+    overlays.remove('game_over');
+    overlays.add('main_menu');
+
+    isGameOver = false;
+    isStarted = false;
+    horizontalInput = 0;
+
+    // Reset stats so the menu shows a fresh state
+    lives = 3;
+    score = 0;
+    coinCount = 0;
+    elapsedTime = 0;
+    _maxPlayerX = 0;
+  }
+
   void _startLevel() {
     player.resetPlayer();
-    // Position player with bottom exactly on ground top
     player.position = Vector2(100, size.y - 100 - player.size.y / 2);
     _maxPlayerX = 0;
 
@@ -138,14 +170,12 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
 
   void _generateNextChunk(double targetX) {
     while (_lastGeneratedX < targetX) {
-      // Ground
       world.add(Platform(
         position: Vector2(_lastGeneratedX, size.y - 100),
         size: Vector2(400, 100),
         isGround: true,
       ));
 
-      // Ground decorations
       if (_lastGeneratedX > 200 && _random.nextDouble() > 0.45) {
         final groundDecoTypes = [DecorationType.mushroom, DecorationType.rock, DecorationType.bush];
         final type = groundDecoTypes[_random.nextInt(groundDecoTypes.length)];
@@ -156,7 +186,6 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
         ));
       }
 
-      // Clouds
       if (_random.nextDouble() > 0.5) {
         world.add(GameDecoration(
           position: Vector2(_lastGeneratedX + _random.nextDouble() * 400, size.y * 0.1 + _random.nextDouble() * 100),
@@ -165,7 +194,6 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
         ));
       }
 
-      // Floating platforms with collectibles and enemies
       if (_lastGeneratedX > 400) {
         final y = size.y - 200 - _random.nextInt(150).toDouble();
         final w = 150 + _random.nextInt(150).toDouble();
@@ -197,7 +225,7 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
 
   @override
   void update(double dt) {
-    if (isGameOver) return;
+    if (!isStarted || isGameOver) return;
     super.update(dt);
     elapsedTime += dt;
 
@@ -209,7 +237,6 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
     timeText.text = 'TIME: ${elapsedTime.toInt()}s';
     scoreText.text = 'SCORE: ${score.toString().padLeft(4, '0')}';
 
-    // Always generate ahead of the player
     if (player.position.x + 1500 > _lastGeneratedX) {
       _generateNextChunk(player.position.x + 2000);
     }
@@ -238,46 +265,19 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
     }
   }
 
-  // No-op: kept for Goal component compatibility
   void nextLevel() {}
 
   void gameOver() {
     isGameOver = true;
-    _gameOverText = TextComponent(
-      text: 'GAME OVER\nSCORE: $score\nPress Space to Restart',
-      position: size / 2,
-      anchor: Anchor.center,
-      textRenderer: TextPaint(
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 28,
-          fontWeight: FontWeight.bold,
-          fontFamily: 'monospace',
-          shadows: [Shadow(color: Colors.black, blurRadius: 6, offset: Offset(2, 2))],
-        ),
-      ),
-    );
-    camera.viewport.add(_gameOverText!);
-  }
-
-  void resetGame() {
-    lives = 3;
-    score = 0;
-    coinCount = 0;
-    elapsedTime = 0;
-    isGameOver = false;
-    horizontalInput = 0;
-
-    _gameOverText?.removeFromParent();
-    _gameOverText = null;
-
-    _startLevel();
+    overlays.add('game_over');
   }
 
   @override
   KeyEventResult onKeyEvent(KeyEvent event, Set<LogicalKeyboardKey> keysPressed) {
-    if (isGameOver) {
-      if (keysPressed.contains(LogicalKeyboardKey.space)) resetGame();
+    if (!isStarted || isGameOver) {
+      if (event is KeyDownEvent && keysPressed.contains(LogicalKeyboardKey.space)) {
+        startGame();
+      }
       return KeyEventResult.handled;
     }
 
@@ -294,8 +294,10 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
 
   @override
   void onTapDown(TapDownEvent event) {
-    if (isGameOver) {
-      resetGame();
+    if (!isStarted) {
+      startGame();
+    } else if (isGameOver) {
+      startGame();
     } else {
       player.attack();
     }

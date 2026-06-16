@@ -7,6 +7,7 @@ import 'platform.dart';
 import 'coin.dart';
 import 'enemy.dart';
 import 'potion.dart';
+import 'chest.dart';
 import 'goal.dart';
 
 class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, CollisionCallbacks {
@@ -164,6 +165,8 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
         takeDamage();
       }
     } else if (other is Potion) {
+      other.collect();
+    } else if (other is Chest) {
       other.collect();
     } else if (other is Goal) {
       other.reach();
