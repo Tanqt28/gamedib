@@ -226,22 +226,26 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
         _addPlatform(Platform(position: Vector2(_lastGeneratedX + 100, y), size: Vector2(w, 40)));
 
         if (_random.nextDouble() > 0.4) {
-          world.add(Coin(position: Vector2(_lastGeneratedX + 100 + w / 2, y - 40)));
+          // Coin: Anchor.topLeft, h=30 → bottom at platTop (y) when placed at y-30
+          world.add(Coin(position: Vector2(_lastGeneratedX + 100 + w / 2, y - 30)));
         }
         if (_random.nextDouble() > 0.6) {
+          // Enemy: Anchor.center, h=40 → bottom at platTop when center is at y-20
           world.add(Enemy(
-            position: Vector2(_lastGeneratedX + 100 + w / 2, y - 40),
+            position: Vector2(_lastGeneratedX + 100 + w / 2, y - 20),
             type: _random.nextBool() ? EnemyType.walking : EnemyType.flying,
           ));
         }
         if (_random.nextDouble() > 0.8) {
+          // Potion: Anchor.topLeft, h=35 → bottom at platTop when placed at y-35
           world.add(Potion(
-            position: Vector2(_lastGeneratedX + 100 + _random.nextDouble() * w, y - 50),
+            position: Vector2(_lastGeneratedX + 100 + _random.nextDouble() * w, y - 35),
             type: _random.nextBool() ? PotionType.health : PotionType.invincibility,
           ));
         }
         if (_random.nextDouble() > 0.92) {
-          world.add(Chest(position: Vector2(_lastGeneratedX + 100 + w / 2, y - 60)));
+          // Chest: Anchor.topLeft, h=40 → bottom at platTop when placed at y-40
+          world.add(Chest(position: Vector2(_lastGeneratedX + 100 + w / 2, y - 40)));
         }
       }
 
