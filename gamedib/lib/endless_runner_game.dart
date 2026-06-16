@@ -30,7 +30,6 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
   double _maxPlayerX = 0;
 
   double horizontalInput = 0;
-  double verticalInput = 0;
   final math.Random _random = math.Random();
 
   ParallaxComponent? parallaxBackground;
@@ -268,7 +267,6 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
     elapsedTime = 0;
     isGameOver = false;
     horizontalInput = 0;
-    verticalInput = 0;
 
     _gameOverText?.removeFromParent();
     _gameOverText = null;
@@ -287,11 +285,7 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
     if (keysPressed.contains(LogicalKeyboardKey.keyA)) horizontalInput -= 1;
     if (keysPressed.contains(LogicalKeyboardKey.keyD)) horizontalInput += 1;
 
-    verticalInput = 0;
-    if (keysPressed.contains(LogicalKeyboardKey.keyW)) verticalInput -= 1;
-    if (keysPressed.contains(LogicalKeyboardKey.keyS)) verticalInput += 1;
-
-    if (keysPressed.contains(LogicalKeyboardKey.space)) {
+    if (keysPressed.contains(LogicalKeyboardKey.space) || keysPressed.contains(LogicalKeyboardKey.keyW)) {
       if (event is KeyDownEvent) player.jump();
     }
 

@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
-import 'package:flame/effects.dart';
 import 'package:flutter/material.dart';
 import 'endless_runner_game.dart';
 import 'platform.dart';
@@ -146,7 +145,6 @@ class Enemy extends PositionComponent with HasGameRef<EndlessRunnerGame>, Collis
       die();
     } else {
       _flashFrames = 10;
-      add(ColorEffect(Colors.white, EffectController(duration: 0.1, reverseDuration: 0.1)));
     }
   }
 

@@ -75,6 +75,8 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
     if (gameRef.isGameOver) return;
     super.update(dt);
 
+    // Drop stale refs to platforms removed from the world
+    _groundedPlatforms.removeWhere((p) => !p.isMounted);
     isGrounded = _groundedPlatforms.isNotEmpty;
 
     position.x += gameRef.horizontalInput * moveSpeed * dt;
@@ -85,17 +87,9 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
       if (scale.x > 0) scale.x = -scale.x.abs();
     }
 
-    if (gameRef.verticalInput != 0) {
-      position.y += gameRef.verticalInput * moveSpeed * dt;
-      if (gameRef.verticalInput < 0) {
-        isGrounded = false;
-        _groundedPlatforms.clear();
-      }
-    }
-
-    if (!isGrounded && gameRef.verticalInput == 0) {
+    if (!isGrounded) {
       velocity.y += gravity * dt;
-    } else if (isGrounded) {
+    } else {
       velocity.y = 0;
     }
 
@@ -143,7 +137,7 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
     super.onCollision(intersectionPoints, other);
 
     if (other is Platform) {
-      if (velocity.y >= 0 || gameRef.verticalInput > 0) {
+      if (velocity.y >= 0) {
         final playerBottom = position.y + size.y / 2;
         final platformTop = other.position.y;
         if (playerBottom <= platformTop + 40) {
@@ -160,7 +154,7 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
     } else if (other is Enemy) {
       if (isAttacking) {
         other.takeDamage();
-        other.position.x += (scale.x > 0 ? 50 : -50);
+        if (!other.isDead) other.position.x += (scale.x > 0 ? 50 : -50);
       } else if (velocity.y > 0 && (position.y + size.y / 2) < other.position.y) {
         other.die();
         velocity.y = jumpVelocity * 0.7;
