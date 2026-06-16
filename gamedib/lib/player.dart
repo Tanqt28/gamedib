@@ -109,7 +109,7 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
         gameRef.gameOver();
       } else {
         position.x = (gameRef.camera.viewfinder.position.x - 300).clamp(100.0, double.maxFinite);
-        position.y = 300;
+        position.y = gameRef.size.y - 100 - size.y / 2;
         velocity = Vector2.zero();
         isGrounded = false;
         isInvulnerable = true;
@@ -127,8 +127,10 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
     super.onCollision(intersectionPoints, other);
 
     if (other is Platform) {
-      if (velocity.y > 0 && (position.y + size.y / 2 - velocity.y * 0.2) <= other.position.y - other.size.y / 2) {
-        position.y = other.position.y - other.size.y / 2 - size.y / 2;
+      final playerBottom = position.y + size.y / 2;
+      final platformTop = other.position.y;
+      if (velocity.y >= 0 && playerBottom <= platformTop + 40) {
+        position.y = platformTop - size.y / 2;
         velocity.y = 0;
         isGrounded = true;
         jumpCount = 0;
