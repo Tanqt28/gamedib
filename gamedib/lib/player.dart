@@ -7,7 +7,6 @@ import 'platform.dart';
 import 'coin.dart';
 import 'enemy.dart';
 import 'potion.dart';
-import 'chest.dart';
 import 'goal.dart';
 
 class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, CollisionCallbacks {
@@ -23,7 +22,6 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
   bool isAttacking = false;
   double attackDuration = 0.25;
   double attackTimer = 0;
-  final Set<Enemy> _hitThisAttack = {};
 
   bool isInvulnerable = false;
   double invulnerableDuration = 1.5;
@@ -31,6 +29,9 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
 
   bool isFlashed = false;
   double flashTimer = 0;
+
+  // Track active platform collisions to handle grounding accurately
+  final Set<Platform> _groundedPlatforms = {};
 
   Player() {
     position = Vector2(100, 400);
@@ -47,17 +48,19 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
   void render(Canvas canvas) {
     if (isFlashed && (flashTimer * 10).toInt() % 2 == 0) return;
 
+    final rect = Rect.fromLTWH(-size.x / 2, -size.y / 2, size.x, size.y);
+    
     // Body (Tunic)
     final bodyPaint = Paint()..color = isInvulnerable ? Colors.blue : Colors.green;
-    canvas.drawRect(Rect.fromLTWH(-15, -10, 30, 35), bodyPaint);
+    canvas.drawRect(Rect.fromLTWH(-17.5, -12.5, 35, 40), bodyPaint);
     
     // Head
     final headPaint = Paint()..color = const Color(0xFFFFDBAC);
-    canvas.drawRect(Rect.fromLTWH(-12, -27, 24, 20), headPaint);
+    canvas.drawRect(Rect.fromLTWH(-12.5, -27.5, 25, 20), headPaint);
     
     // Hair
     final hairPaint = Paint()..color = Colors.brown;
-    canvas.drawRect(Rect.fromLTWH(-12, -27, 24, 6), hairPaint);
+    canvas.drawRect(Rect.fromLTWH(-12.5, -27.5, 25, 5), hairPaint);
     
     // Sword
     final swordPaint = Paint()..color = Colors.grey;
@@ -78,18 +81,40 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
     if (gameRef.isGameOver) return;
     super.update(dt);
 
-    // Apply manual movement
+    isGrounded = _groundedPlatforms.isNotEmpty;
+
+    // Horizontal Movement (A/D)
     position.x += gameRef.horizontalInput * moveSpeed * dt;
 
+    // Face the direction of movement (A/D)
+    if (gameRef.horizontalInput > 0) {
+      if (scale.x < 0) scale.x = scale.x.abs();
+    } else if (gameRef.horizontalInput < 0) {
+      if (scale.x > 0) scale.x = -scale.x.abs();
+    }
+
+    // Vertical Movement (W/S) - Manual Up/Down
+    if (gameRef.verticalInput != 0) {
+      position.y += gameRef.verticalInput * moveSpeed * dt;
+      if (gameRef.verticalInput < 0) {
+        isGrounded = false;
+        _groundedPlatforms.clear();
+      }
+    }
+
     // Apply gravity
-    velocity.y += gravity * dt;
+    if (!isGrounded && gameRef.verticalInput == 0) {
+      velocity.y += gravity * dt;
+    } else if (isGrounded) {
+      velocity.y = 0;
+    }
+    
     position.y += velocity.y * dt;
 
     if (isAttacking) {
       attackTimer -= dt;
       if (attackTimer <= 0) {
         isAttacking = false;
-        _hitThisAttack.clear();
       }
     }
 
@@ -102,24 +127,13 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
       }
     }
 
-    // Fell off the world
-    if (position.y > 1200) {
-      gameRef.lives--;
-      if (gameRef.lives <= 0) {
-        gameRef.gameOver();
-      } else {
-        position.x = (gameRef.camera.viewfinder.position.x - 300).clamp(100.0, double.maxFinite);
-        position.y = 300;
-        velocity = Vector2.zero();
-        isGrounded = false;
-        isInvulnerable = true;
-        isFlashed = true;
-        invulnerableTimer = invulnerableDuration;
-        flashTimer = 0;
-      }
+    // Death by falling
+    if (position.y > 1000) { 
+      gameRef.gameOver();
     }
 
-    if (position.x < 20) position.x = 20;
+    // World bounds
+    if (position.x < size.x / 2) position.x = size.x / 2;
   }
 
   @override
@@ -127,30 +141,37 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
     super.onCollision(intersectionPoints, other);
 
     if (other is Platform) {
-      if (velocity.y > 0 && (position.y + size.y / 2 - velocity.y * 0.2) <= other.position.y - other.size.y / 2) {
-        position.y = other.position.y - other.size.y / 2 - size.y / 2;
-        velocity.y = 0;
-        isGrounded = true;
-        jumpCount = 0;
+      // Landing logic: Fixed the bouncing by ensuring a stable snap
+      if (velocity.y >= 0 || gameRef.verticalInput > 0) {
+        final playerBottom = position.y + size.y / 2;
+        final platformTop = other.position.y; // Platform anchor is topLeft
+        
+        // If the player's bottom is roughly at the platform's top and moving down.
+        if (playerBottom >= platformTop && (playerBottom - platformTop) < 30) {
+           // Snap exactly to top, with a 1.0px overlap to ensure collision stays active
+           position.y = platformTop - size.y / 2 + 1.0;
+           velocity.y = 0;
+           _groundedPlatforms.add(other);
+           isGrounded = true;
+           jumpCount = 0;
+        }
       }
     } else if (other is Coin) {
       other.collect();
     } else if (other is Enemy) {
       if (isAttacking) {
-        if (!_hitThisAttack.contains(other)) {
-          other.takeDamage();
-          other.position.x += 150;
-          _hitThisAttack.add(other);
-        }
+        other.takeDamage();
+        other.position.x += (scale.x > 0 ? 50 : -50);
       } else if (velocity.y > 0 && (position.y + size.y / 2) < other.position.y) {
+        // Stomp kill
         other.die();
-        velocity.y = jumpVelocity * 0.7;
+        velocity.y = jumpVelocity * 0.7; 
+        isGrounded = false;
+        _groundedPlatforms.clear();
       } else {
         takeDamage();
       }
     } else if (other is Potion) {
-      other.collect();
-    } else if (other is Chest) {
       other.collect();
     } else if (other is Goal) {
       other.reach();
@@ -161,15 +182,16 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
   void onCollisionEnd(PositionComponent other) {
     super.onCollisionEnd(other);
     if (other is Platform) {
-      isGrounded = false;
+      _groundedPlatforms.remove(other);
     }
   }
 
   void jump() {
-    if (isGrounded || jumpCount < maxJumps) {
+    if (isGrounded) {
       velocity.y = jumpVelocity;
-      jumpCount++;
+      jumpCount = 1;
       isGrounded = false;
+      _groundedPlatforms.clear();
     }
   }
 
@@ -177,7 +199,6 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
     if (!isAttacking) {
       isAttacking = true;
       attackTimer = attackDuration;
-      _hitThisAttack.clear();
     }
   }
 
@@ -192,8 +213,12 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
       isFlashed = true;
       invulnerableTimer = invulnerableDuration;
       flashTimer = 0;
-      position.x -= 50;
+      
+      // Player knockback
+      position.x -= (scale.x > 0 ? 60 : -60);
       velocity.y = -400;
+      isGrounded = false;
+      _groundedPlatforms.clear();
     }
   }
 
@@ -205,5 +230,7 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
     isInvulnerable = false;
     isFlashed = false;
     jumpCount = 0;
+    scale.x = scale.x.abs();
+    _groundedPlatforms.clear();
   }
 }
