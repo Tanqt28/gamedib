@@ -1,5 +1,6 @@
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
+import 'package:flame_audio/flame_audio.dart';
 import 'package:flutter/material.dart';
 import 'endless_runner_game.dart';
 
@@ -44,6 +45,7 @@ class Potion extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
       gameRef.player.isInvulnerable = true;
       gameRef.player.invulnerableTimer = 5.0; // 5 seconds for blue potion
     }
+    FlameAudio.play('400 Sounds Pack/Retro/power_up.wav');
     removeFromParent();
   }
 }

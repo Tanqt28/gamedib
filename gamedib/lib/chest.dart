@@ -1,5 +1,6 @@
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
+import 'package:flame_audio/flame_audio.dart';
 import 'package:flutter/material.dart';
 import 'endless_runner_game.dart';
 
@@ -37,6 +38,7 @@ class Chest extends PositionComponent with HasGameRef<EndlessRunnerGame>, Collis
   void collect() {
     gameRef.score += 2000;
     gameRef.lives = 3; // Refill lives
+    FlameAudio.play('400 Sounds Pack/Musical Effects/8_bit_chime_positive.wav');
     removeFromParent();
   }
 }

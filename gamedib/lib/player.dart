@@ -7,7 +7,6 @@ import 'platform.dart';
 import 'coin.dart';
 import 'enemy.dart';
 import 'potion.dart';
-import 'chest.dart';
 import 'goal.dart';
 
 class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, CollisionCallbacks {
@@ -46,71 +45,29 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
   void render(Canvas canvas) {
     if (isFlashed && (flashTimer * 10).toInt() % 2 == 0) return;
 
-    // Flame positions the render canvas at the component's top-left even when
-    // anchor = Anchor.center. Shift to center so all draw calls use center-relative coords.
-    canvas.translate(size.x / 2, size.y / 2);
-
-    final skin      = Paint()..color = const Color(0xFFFFDBAC);
-    final hair      = Paint()..color = const Color(0xFF3E2000);
-    final tunic     = Paint()..color = isInvulnerable ? const Color(0xFF1565C0) : const Color(0xFF2E7D32);
-    final pants     = Paint()..color = const Color(0xFF1A237E);
-    final boot      = Paint()..color = const Color(0xFF3E2723);
-    final belt      = Paint()..color = const Color(0xFF6D4C41);
-    final eye       = Paint()..color = const Color(0xFF212121);
-    final blade     = Paint()..color = const Color(0xFFCFD8DC);
-    final handle    = Paint()..color = const Color(0xFF795548);
-    final guard     = Paint()..color = const Color(0xFFFDD835);
-    final shine     = Paint()..color = Colors.white.withOpacity(0.55);
-
-    // Head  (top aligned to hitbox top: -27.5)
-    canvas.drawRect(Rect.fromLTWH(-9, -27.5, 18, 16.5), skin);
-    // Hair (fills hitbox top)
-    canvas.drawRect(Rect.fromLTWH(-9, -27.5, 18, 6.5), hair);
-    // Side hair
-    canvas.drawRect(Rect.fromLTWH(-9, -21, 3, 5), hair);
-    // Eyes
-    canvas.drawRect(Rect.fromLTWH(-7, -20, 4, 3), eye);
-    canvas.drawRect(Rect.fromLTWH(3,  -20, 4, 3), eye);
-    canvas.drawRect(Rect.fromLTWH(-6, -20, 1, 1), Paint()..color = Colors.white);
-    canvas.drawRect(Rect.fromLTWH(4,  -20, 1, 1), Paint()..color = Colors.white);
-
-    // Tunic / body
-    canvas.drawRect(Rect.fromLTWH(-11, -11, 22, 20), tunic);
-    // Neck seam
-    canvas.drawRect(Rect.fromLTWH(-4, -11, 8, 3), skin);
-
-    // Belt
-    canvas.drawRect(Rect.fromLTWH(-11, 7, 22, 4), belt);
-    // Belt buckle
-    canvas.drawRect(Rect.fromLTWH(-3, 7, 6, 4), guard);
-
-    // Legs
-    canvas.drawRect(Rect.fromLTWH(-11, 11, 9, 11), pants);
-    canvas.drawRect(Rect.fromLTWH(2,   11, 9, 11), pants);
-
-    // Boots (bottom exactly at hitbox bottom: y = 27.5 = size.y/2)
-    canvas.drawRect(Rect.fromLTWH(-12, 20, 10, 7.5), boot);
-    canvas.drawRect(Rect.fromLTWH(2,   20, 10, 7.5), boot);
-    // Boot highlight
-    canvas.drawRect(Rect.fromLTWH(-11, 21, 3, 2), Paint()..color = Colors.white.withOpacity(0.3));
-    canvas.drawRect(Rect.fromLTWH(3,   21, 3, 2), Paint()..color = Colors.white.withOpacity(0.3));
-
+    // Body (Tunic)
+    final bodyPaint = Paint()..color = isInvulnerable ? Colors.blue : Colors.green;
+    canvas.drawRect(Rect.fromLTWH(-17.5, -12.5, 35, 40), bodyPaint);
+    
+    // Head
+    final headPaint = Paint()..color = const Color(0xFFFFDBAC);
+    canvas.drawRect(Rect.fromLTWH(-12.5, -27.5, 25, 20), headPaint);
+    
+    // Hair
+    final hairPaint = Paint()..color = Colors.brown;
+    canvas.drawRect(Rect.fromLTWH(-12.5, -27.5, 25, 5), hairPaint);
+    
     // Sword
+    final swordPaint = Paint()..color = Colors.grey;
     if (isAttacking) {
       canvas.save();
-      canvas.translate(13, 0);
-      canvas.rotate(0.45);
-      canvas.drawRect(Rect.fromLTWH(0, -3, 38, 5), blade);   // blade
-      canvas.drawRect(Rect.fromLTWH(-4, -6, 6, 11), guard);  // guard
-      canvas.drawRect(Rect.fromLTWH(-9, -3, 7, 5), handle);  // handle
-      canvas.drawRect(Rect.fromLTWH(1, -2, 34, 2), shine);   // edge shine
+      canvas.translate(15, 0);
+      canvas.rotate(0.5);
+      canvas.drawRect(Rect.fromLTWH(0, -5, 40, 10), swordPaint);
+      canvas.drawRect(Rect.fromLTWH(0, -5, 45, 12), Paint()..color = Colors.white.withOpacity(0.4));
       canvas.restore();
     } else {
-      // Vertical resting position
-      canvas.drawRect(Rect.fromLTWH(12, -16, 5, 27), blade);
-      canvas.drawRect(Rect.fromLTWH(9,   4,  11, 4), guard);
-      canvas.drawRect(Rect.fromLTWH(13,  8,  4,  9), handle);
-      canvas.drawRect(Rect.fromLTWH(13, -16, 1, 20), shine);
+      canvas.drawRect(Rect.fromLTWH(15, 5, 20, 5), swordPaint);
     }
   }
 
@@ -119,24 +76,36 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
     if (gameRef.isGameOver) return;
     super.update(dt);
 
+    // Horizontal Movement (A/D)
     position.x += gameRef.horizontalInput * moveSpeed * dt;
 
+    // Face the direction of movement (A/D)
     if (gameRef.horizontalInput > 0) {
       if (scale.x < 0) scale.x = scale.x.abs();
     } else if (gameRef.horizontalInput < 0) {
       if (scale.x > 0) scale.x = -scale.x.abs();
     }
 
-    if (!isGrounded) {
-      velocity.y += gravity * dt;
-    } else {
-      velocity.y = 0;
+    // Vertical Movement (W/S) - Manual Up/Down
+    if (gameRef.verticalInput != 0) {
+      position.y += gameRef.verticalInput * moveSpeed * dt;
+      isGrounded = false; 
     }
 
+    // Apply gravity only if not grounded and not moving manually up
+    if (!isGrounded && gameRef.verticalInput == 0) {
+      velocity.y += gravity * dt;
+    } else if (isGrounded) {
+      velocity.y = 0;
+    }
+    
+    // Cap vertical velocity to prevent falling through platforms
+    if (velocity.y > 1000) velocity.y = 1000;
+    
     position.y += velocity.y * dt;
 
-    // Direct AABB ground check — more reliable than collision callbacks
-    _resolveGrounding();
+    // Manual Floor Check to prevent falling through when high speed
+    _checkGroundCollisions();
 
     if (isAttacking) {
       attackTimer -= dt;
@@ -154,60 +123,46 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
       }
     }
 
-    if (position.y > 1200) {
-      gameRef.lives--;
-      if (gameRef.lives <= 0) {
-        gameRef.gameOver();
-      } else {
-        position.x = (gameRef.camera.viewfinder.position.x - 300).clamp(100.0, double.maxFinite);
-        position.y = gameRef.size.y - 100 - size.y / 2;
-        velocity = Vector2.zero();
-        isGrounded = false;
-        isInvulnerable = true;
-        isFlashed = true;
-        invulnerableTimer = invulnerableDuration;
-        flashTimer = 0;
-      }
+    // Death by falling
+    if (position.y > 1500) { 
+      gameRef.gameOver();
     }
 
     if (position.x < size.x / 2) position.x = size.x / 2;
   }
 
-  // Per-frame AABB collision resolution against the explicit platforms list.
-  // Handles both ground and floating platforms — ground tiles are included so
-  // the snap always uses the actual platform.position.y rather than the
-  // potentially stale gameRef.size.y value.
-  void _resolveGrounding() {
-    final playerTop    = position.y - size.y / 2;
+  void _checkGroundCollisions() {
+    // Only check if we are moving down
+    if (velocity.y < 0 && gameRef.verticalInput >= 0) return;
+    
     final playerBottom = position.y + size.y / 2;
-    final playerLeft   = position.x - size.x / 2;
-    final playerRight  = position.x + size.x / 2;
+    final playerLeft = position.x - size.x / 2;
+    final playerRight = position.x + size.x / 2;
 
-    isGrounded = false;
+    bool foundGround = false;
 
     for (final platform in gameRef.platforms) {
-      final platLeft   = platform.position.x;
-      final platRight  = platform.position.x + platform.size.x;
-      final platTop    = platform.position.y;
-      final platBottom = platform.position.y + platform.size.y;
+      final platformTop = platform.position.y;
+      final platformBottom = platform.position.y + platform.size.y;
+      final platformLeft = platform.position.x;
+      final platformRight = platform.position.x + platform.size.x;
 
-      if (playerRight <= platLeft || playerLeft >= platRight) continue;
-
-      // Land on top (falling down onto platform)
-      if (velocity.y >= 0 && playerBottom >= platTop && playerBottom <= platBottom) {
-        position.y = platTop - size.y / 2;
-        velocity.y = 0;
-        isGrounded = true;
-        jumpCount = 0;
-        return;
+      // Check if player is horizontally over the platform
+      if (playerRight > platformLeft && playerLeft < platformRight) {
+        // Check if player bottom is crossing the platform top
+        if (playerBottom >= platformTop && playerBottom <= platformTop + 40) {
+          position.y = platformTop - size.y / 2;
+          velocity.y = 0;
+          isGrounded = true;
+          jumpCount = 0;
+          foundGround = true;
+          break;
+        }
       }
+    }
 
-      // Bounce off underside — only for floating platforms, not the solid ground
-      if (!platform.isGround && velocity.y < 0 && playerTop >= platTop && playerTop <= platBottom) {
-        position.y = platBottom + size.y / 2;
-        velocity.y = 0;
-        return;
-      }
+    if (!foundGround && gameRef.verticalInput == 0) {
+      isGrounded = false;
     }
   }
 
@@ -215,23 +170,20 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
   void onCollision(Set<Vector2> intersectionPoints, PositionComponent other) {
     super.onCollision(intersectionPoints, other);
 
-    // Platform grounding is handled by _resolveGrounding(); only handle collectibles/enemies here
     if (other is Coin) {
       other.collect();
     } else if (other is Enemy) {
       if (isAttacking) {
         other.takeDamage();
-        if (!other.isDead) other.position.x += (scale.x > 0 ? 50 : -50);
+        other.position.x += (scale.x > 0 ? 50 : -50);
       } else if (velocity.y > 0 && (position.y + size.y / 2) < other.position.y) {
         other.die();
-        velocity.y = jumpVelocity * 0.7;
+        velocity.y = jumpVelocity * 0.7; 
         isGrounded = false;
       } else {
         takeDamage();
       }
     } else if (other is Potion) {
-      other.collect();
-    } else if (other is Chest) {
       other.collect();
     } else if (other is Goal) {
       other.reach();
@@ -241,8 +193,8 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
   void jump() {
     if (isGrounded) {
       velocity.y = jumpVelocity;
-      jumpCount = 1;
       isGrounded = false;
+      jumpCount = 1;
     }
   }
 
@@ -264,6 +216,7 @@ class Player extends PositionComponent with HasGameRef<EndlessRunnerGame>, Colli
       isFlashed = true;
       invulnerableTimer = invulnerableDuration;
       flashTimer = 0;
+      
       position.x -= (scale.x > 0 ? 60 : -60);
       velocity.y = -400;
       isGrounded = false;

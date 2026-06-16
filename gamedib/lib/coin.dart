@@ -1,5 +1,6 @@
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
+import 'package:flame_audio/flame_audio.dart';
 import 'package:flutter/material.dart';
 import 'endless_runner_game.dart';
 
@@ -23,17 +24,10 @@ class Coin extends PositionComponent with HasGameRef<EndlessRunnerGame>, Collisi
     canvas.drawCircle(Offset(size.x / 2, size.y / 2), size.x / 2, borderPaint);
   }
 
-  @override
-  void update(double dt) {
-    super.update(dt);
-    if (gameRef.player.position.x - position.x > 1200) {
-      removeFromParent();
-    }
-  }
-
   void collect() {
     gameRef.score += 100;
     gameRef.coinCount += 1;
+    FlameAudio.play('400 Sounds Pack/Retro/coin.wav');
     removeFromParent();
   }
 }

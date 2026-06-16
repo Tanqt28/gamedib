@@ -3,6 +3,7 @@ import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flame/components.dart';
 import 'package:flame/parallax.dart';
+import 'package:flame_audio/flame_audio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'player.dart';
@@ -20,55 +21,64 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
   late TextComponent coinText;
   late TextComponent livesText;
   late TextComponent timeText;
+  late TextComponent levelText;
+  late TextComponent objectiveText;
 
   int lives = 3;
   int score = 0;
   int coinCount = 0;
   bool isGameOver = false;
-  bool isStarted = false;
+  bool isStarted = false; 
   double elapsedTime = 0.0;
-  double _maxPlayerX = 0;
+  int currentLevel = 1;
+  final int maxLevels = 3;
 
-  int selectedMap = 1;
+  double levelLength = 5000.0; 
+  bool goalSpawned = false;
 
   double horizontalInput = 0;
+  double verticalInput = 0; 
   final math.Random _random = math.Random();
 
-  // Explicit platform registry so _resolveGrounding can iterate without
-  // touching Flame's ComponentSet (which doesn't expose pending components).
+  ParallaxComponent? parallaxBackground; 
+  double _lastGeneratedX = 0;
+  
   final List<Platform> platforms = [];
 
-  ParallaxComponent? parallaxBackground;
-  double _lastGeneratedX = 0;
+  int selectedMapIndex = 1;
+  final Map<int, List<String>> mapBackgrounds = {
+    1: ['bg_layer_1.png', 'bg_layer_2.png', 'bg_layer_3.png'],
+    2: ['bg_layer_1.png', 'bg_layer_2.png', 'bg_layer_3.png'], 
+    3: ['bg_layer_1.png', 'bg_layer_2.png', 'bg_layer_3.png'],
+  };
 
   @override
   Future<void> onLoad() async {
     camera.viewfinder.anchor = Anchor.center;
-
-    await _setupBackground();
 
     player = Player();
     world.add(player);
     camera.follow(player);
 
     _setupUI();
-
-    overlays.add('main_menu');
+    
+    await selectMap(1); 
+    
+    // Start background music loop
+    FlameAudio.bgm.initialize();
   }
 
   Future<void> _setupBackground() async {
-    // Each map uses its own single opaque image — stacking them hides all but the top one.
-    final imageFile = switch (selectedMap) {
-      2 => 'bg_layer_2.png',
-      3 => 'bg_layer_3.png',
-      _ => 'bg_layer_1.png',
-    };
-
+    if (parallaxBackground != null) {
+      parallaxBackground!.removeFromParent();
+    }
+    
     try {
+      final images = mapBackgrounds[selectedMapIndex] ?? mapBackgrounds[1]!;
       parallaxBackground = await loadParallaxComponent(
-        [ParallaxImageData(imageFile)],
-        baseVelocity: Vector2(20, 0),
-        velocityMultiplierDelta: Vector2(1.0, 0),
+        images.map((img) => ParallaxImageData(img)).toList(),
+        baseVelocity: Vector2(0, 0),
+        velocityMultiplierDelta: Vector2(1.2, 0),
       );
       if (parallaxBackground != null) {
         parallaxBackground!.priority = -10;
@@ -119,6 +129,14 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
     );
     camera.viewport.add(timeText);
 
+    levelText = TextComponent(
+      text: 'LEVEL: $currentLevel',
+      position: Vector2(size.x - 20, 50),
+      anchor: Anchor.topRight,
+      textRenderer: textPaint,
+    );
+    camera.viewport.add(levelText);
+
     scoreText = TextComponent(
       text: 'SCORE: 0000',
       position: Vector2(size.x - 20, 20),
@@ -126,72 +144,92 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
       textRenderer: textPaint,
     );
     camera.viewport.add(scoreText);
+
+    objectiveText = TextComponent(
+      text: 'Objective: Reach the flag!',
+      position: Vector2(size.x / 2, 60),
+      anchor: Anchor.topCenter,
+      textRenderer: TextPaint(style: textStyle.copyWith(fontSize: 16, color: Colors.yellowAccent)),
+    );
+    camera.viewport.add(objectiveText);
+    
+    _setUIVisibility(false);
   }
 
-  Future<void> selectMap(int mapIndex) async {
-    selectedMap = mapIndex;
-    await startGame();
+  void _setUIVisibility(bool visible) {
+    livesText.opacity = visible ? 1 : 0;
+    coinText.opacity = visible ? 1 : 0;
+    timeText.opacity = visible ? 1 : 0;
+    levelText.opacity = visible ? 1 : 0;
+    scoreText.opacity = visible ? 1 : 0;
+    objectiveText.opacity = visible ? 1 : 0;
   }
 
-  Future<void> startGame() async {
-    overlays.remove('main_menu');
-    overlays.remove('map_select');
-    overlays.remove('game_over');
-
+  void startGame() {
+    isStarted = true;
+    isGameOver = false;
     lives = 3;
     score = 0;
     coinCount = 0;
+    currentLevel = 1;
     elapsedTime = 0;
-    isGameOver = false;
-    horizontalInput = 0;
-
-    parallaxBackground?.removeFromParent();
-    parallaxBackground = null;
-    // Yield one event-loop turn so Flame's lifecycle can remove the old component
-    // before the new one is added in _setupBackground().
-    await Future.delayed(Duration.zero);
-    await _setupBackground();
-
-    isStarted = true;
+    
+    overlays.remove('main_menu');
+    overlays.remove('map_select');
+    overlays.remove('game_over');
+    overlays.remove('pause_menu');
+    
+    _setUIVisibility(true);
+    resumeEngine();
     _startLevel();
+    
+    FlameAudio.play('400 Sounds Pack/Musical Effects/8_bit_level_start.wav');
+    
+    // Play BGM
+    FlameAudio.bgm.play('400 Sounds Pack/Musical Effects/8_bit_inn.wav');
   }
 
-  void pauseGame() {
-    if (!isStarted || isGameOver) return;
-    horizontalInput = 0;
-    overlays.add('pause_menu');
+  Future<void> selectMap(int mapIndex) async {
+    selectedMapIndex = mapIndex;
+    await _setupBackground();
+    FlameAudio.play('400 Sounds Pack/UI/select_2.wav');
+    if (!isStarted) {
+      overlays.remove('map_select');
+      overlays.add('main_menu');
+    } else {
+      startGame();
+    }
+  }
+
+  void resetToMenu() {
+    isStarted = false;
+    isGameOver = false;
     pauseEngine();
+    overlays.clear();
+    overlays.add('main_menu');
+    _setUIVisibility(false);
+    FlameAudio.bgm.stop();
+    FlameAudio.play('400 Sounds Pack/UI/cancel.wav');
   }
 
   void resumeGame() {
     overlays.remove('pause_menu');
     resumeEngine();
+    FlameAudio.play('400 Sounds Pack/UI/select_1.wav');
   }
 
-  void resetToMenu() {
-    overlays.remove('game_over');
-    overlays.remove('pause_menu');
-    overlays.add('main_menu');
-
-    if (paused) resumeEngine();
-    isGameOver = false;
-    isStarted = false;
-    horizontalInput = 0;
-
-    lives = 3;
-    score = 0;
-    coinCount = 0;
-    elapsedTime = 0;
-    _maxPlayerX = 0;
+  void pauseGame() {
+    overlays.add('pause_menu');
+    pauseEngine();
+    FlameAudio.play('400 Sounds Pack/UI/select_4.wav');
   }
 
   void _startLevel() {
+    goalSpawned = false;
     player.resetPlayer();
-    player.position = Vector2(100, size.y - 100 - player.size.y / 2);
-    _maxPlayerX = 0;
-
-    for (final p in platforms) p.removeFromParent();
+    
     platforms.clear();
+    world.children.whereType<Platform>().forEach((p) => p.removeFromParent());
     world.children.whereType<Coin>().forEach((c) => c.removeFromParent());
     world.children.whereType<Enemy>().forEach((e) => e.removeFromParent());
     world.children.whereType<Goal>().forEach((g) => g.removeFromParent());
@@ -199,70 +237,31 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
     world.children.whereType<Chest>().forEach((c) => c.removeFromParent());
     world.children.whereType<GameDecoration>().forEach((d) => d.removeFromParent());
 
+    levelLength = 4000.0 + (currentLevel * 2000.0);
     _lastGeneratedX = 0;
     _generateNextChunk(2000);
   }
 
-  void _addPlatform(Platform p) {
-    platforms.add(p);
-    world.add(p);
-  }
-
   void _generateNextChunk(double targetX) {
-    while (_lastGeneratedX < targetX) {
-      _addPlatform(Platform(
-        position: Vector2(_lastGeneratedX, size.y - 100),
-        size: Vector2(400, 100),
-        isGround: true,
-      ));
-
-      if (_lastGeneratedX > 200 && _random.nextDouble() > 0.45) {
-        final groundDecoTypes = [DecorationType.mushroom, DecorationType.rock, DecorationType.bush];
-        final type = groundDecoTypes[_random.nextInt(groundDecoTypes.length)];
-        world.add(GameDecoration(
-          position: Vector2(_lastGeneratedX + 30 + _random.nextDouble() * 320, size.y - 140),
-          size: Vector2(40, 40),
-          type: type,
-        ));
-      }
-
-      if (_random.nextDouble() > 0.5) {
-        world.add(GameDecoration(
-          position: Vector2(_lastGeneratedX + _random.nextDouble() * 400, size.y * 0.1 + _random.nextDouble() * 100),
-          size: Vector2(90, 45),
-          type: DecorationType.cloud,
-        ));
-      }
-
-      if (_lastGeneratedX > 400) {
-        final y = size.y - 200 - _random.nextInt(150).toDouble();
-        final w = 150 + _random.nextInt(150).toDouble();
-        _addPlatform(Platform(position: Vector2(_lastGeneratedX + 100, y), size: Vector2(w, 40)));
+    while (_lastGeneratedX < targetX && _lastGeneratedX < levelLength + 1000) {
+      final p = Platform(position: Vector2(_lastGeneratedX, size.y - 100), size: Vector2(400, 100), isGround: true);
+      world.add(p);
+      platforms.add(p);
+      
+      if (_lastGeneratedX > 400 && _lastGeneratedX < levelLength) {
+        double y = size.y - 200 - _random.nextInt(150).toDouble();
+        double w = 150 + _random.nextInt(150).toDouble();
+        final fp = Platform(position: Vector2(_lastGeneratedX + 100, y), size: Vector2(w, 40));
+        world.add(fp);
+        platforms.add(fp);
 
         if (_random.nextDouble() > 0.4) {
-          // Coin: Anchor.topLeft, h=30 → bottom at platTop (y) when placed at y-30
-          world.add(Coin(position: Vector2(_lastGeneratedX + 100 + w / 2, y - 30)));
+          world.add(Coin(position: Vector2(_lastGeneratedX + 100 + w / 2, y - 40)));
         }
         if (_random.nextDouble() > 0.6) {
-          // Enemy: Anchor.center, h=40 → bottom at platTop when center is at y-20
-          world.add(Enemy(
-            position: Vector2(_lastGeneratedX + 100 + w / 2, y - 20),
-            type: _random.nextBool() ? EnemyType.walking : EnemyType.flying,
-          ));
-        }
-        if (_random.nextDouble() > 0.8) {
-          // Potion: Anchor.topLeft, h=35 → bottom at platTop when placed at y-35
-          world.add(Potion(
-            position: Vector2(_lastGeneratedX + 100 + _random.nextDouble() * w, y - 35),
-            type: _random.nextBool() ? PotionType.health : PotionType.invincibility,
-          ));
-        }
-        if (_random.nextDouble() > 0.92) {
-          // Chest: Anchor.topLeft, h=40 → bottom at platTop when placed at y-40
-          world.add(Chest(position: Vector2(_lastGeneratedX + 100 + w / 2, y - 40)));
+          world.add(Enemy(position: Vector2(_lastGeneratedX + 100 + w / 2, y - 40), type: _random.nextBool() ? EnemyType.walking : EnemyType.flying));
         }
       }
-
       _lastGeneratedX += 400;
     }
   }
@@ -273,81 +272,72 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
     super.update(dt);
     elapsedTime += dt;
 
-    if (player.position.x > _maxPlayerX) _maxPlayerX = player.position.x;
-    score = (_maxPlayerX / 10).toInt() + coinCount * 10;
-
     livesText.text = '❤️' * (lives > 0 ? lives : 0);
     coinText.text = '$coinCount';
     timeText.text = 'TIME: ${elapsedTime.toInt()}s';
     scoreText.text = 'SCORE: ${score.toString().padLeft(4, '0')}';
+    levelText.text = 'LEVEL: $currentLevel';
 
-    if (player.position.x + 1500 > _lastGeneratedX) {
+    if (player.position.x + 1500 > _lastGeneratedX && _lastGeneratedX < levelLength + 1000) {
       _generateNextChunk(player.position.x + 2000);
     }
 
     if (parallaxBackground != null) {
-      parallaxBackground!.position = camera.viewfinder.position - size / 2;
+      parallaxBackground!.position = camera.viewfinder.position - Vector2(size.x / 2, size.y / 2);
       if (parallaxBackground!.parallax != null) {
         parallaxBackground!.parallax!.baseVelocity.x = player.velocity.x / 20;
       }
     }
-  }
 
-  @override
-  Color backgroundColor() {
-    switch (selectedMap) {
-      case 2:
-        // Forest: warm blue sky → golden afternoon → deep orange dusk
-        const sky = Color(0xFF87CEEB);
-        const golden = Color(0xFFFFB74D);
-        const dusk = Color(0xFFE64A19);
-        if (_maxPlayerX < 4000) {
-          return Color.lerp(sky, golden, _maxPlayerX / 4000)!;
-        }
-        return Color.lerp(golden, dusk, ((_maxPlayerX - 4000) / 6000).clamp(0.0, 1.0))!;
-
-      case 3:
-        // Valley: clear blue → warm amber → dusky pink
-        const clear = Color(0xFF81D4FA);
-        const amber = Color(0xFFFFCC02);
-        const pink = Color(0xFFE91E63);
-        if (_maxPlayerX < 5000) {
-          return Color.lerp(clear, amber, _maxPlayerX / 5000)!;
-        }
-        return Color.lerp(amber, pink, ((_maxPlayerX - 5000) / 5000).clamp(0.0, 1.0))!;
-
-      default:
-        // Mountains (map 1): deep purple twilight → midnight blue
-        const twilight = Color(0xFF4A148C);
-        const night = Color(0xFF0D1B4B);
-        return Color.lerp(twilight, night, (_maxPlayerX / 10000).clamp(0.0, 1.0))!;
+    if (!goalSpawned && player.position.x > levelLength) {
+      world.add(Goal(position: Vector2(levelLength + 300, size.y - 180)));
+      goalSpawned = true;
     }
   }
 
-  void nextLevel() {}
+  void nextLevel() {
+    if (currentLevel < maxLevels) {
+      currentLevel++;
+      _startLevel();
+      objectiveText.text = 'Level $currentLevel: Find the Flag!';
+      FlameAudio.play('400 Sounds Pack/Musical Effects/8_bit_level_start.wav');
+    } else {
+      victory();
+    }
+  }
+
+  void victory() {
+    isGameOver = true;
+    objectiveText.text = 'ALL LEVELS CLEARED!';
+    scoreText.text = 'FINAL SCORE: $score';
+    scoreText.position = size / 2;
+    scoreText.anchor = Anchor.center;
+    FlameAudio.bgm.stop();
+    FlameAudio.play('400 Sounds Pack/Musical Effects/8_bit_level_complete.wav');
+    overlays.add('game_over');
+  }
 
   void gameOver() {
     isGameOver = true;
+    objectiveText.text = 'GAME OVER';
+    scoreText.text = 'FINAL SCORE: $score';
+    scoreText.position = size / 2;
+    scoreText.anchor = Anchor.center;
+    FlameAudio.bgm.stop();
+    FlameAudio.play('400 Sounds Pack/Retro/lose.wav');
     overlays.add('game_over');
   }
 
   @override
   KeyEventResult onKeyEvent(KeyEvent event, Set<LogicalKeyboardKey> keysPressed) {
-    if (event is KeyDownEvent && keysPressed.contains(LogicalKeyboardKey.escape)) {
-      if (overlays.isActive('pause_menu')) {
-        resumeGame();
-      } else if (isStarted && !isGameOver) {
-        pauseGame();
-      }
+    if (!isStarted) return KeyEventResult.ignored;
+
+    if (keysPressed.contains(LogicalKeyboardKey.escape) && event is KeyDownEvent) {
+      pauseGame();
       return KeyEventResult.handled;
     }
 
-    if (!isStarted || isGameOver) {
-      if (event is KeyDownEvent && keysPressed.contains(LogicalKeyboardKey.space)) {
-        overlays.remove('main_menu');
-        overlays.remove('game_over');
-        overlays.add('map_select');
-      }
+    if (isGameOver) {
       return KeyEventResult.handled;
     }
 
@@ -355,7 +345,11 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
     if (keysPressed.contains(LogicalKeyboardKey.keyA)) horizontalInput -= 1;
     if (keysPressed.contains(LogicalKeyboardKey.keyD)) horizontalInput += 1;
 
-    if (keysPressed.contains(LogicalKeyboardKey.space) || keysPressed.contains(LogicalKeyboardKey.keyW)) {
+    verticalInput = 0;
+    if (keysPressed.contains(LogicalKeyboardKey.keyW)) verticalInput -= 1;
+    if (keysPressed.contains(LogicalKeyboardKey.keyS)) verticalInput += 1;
+
+    if (keysPressed.contains(LogicalKeyboardKey.space)) {
       if (event is KeyDownEvent) player.jump();
     }
 
@@ -364,7 +358,9 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
 
   @override
   void onTapDown(TapDownEvent event) {
-    if (!isStarted || isGameOver) return;
-    player.attack();
+    if (!isStarted) return;
+    if (!isGameOver) {
+      player.attack();
+    }
   }
 }

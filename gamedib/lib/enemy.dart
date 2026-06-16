@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
+import 'package:flame/effects.dart';
+import 'package:flame_audio/flame_audio.dart';
 import 'package:flutter/material.dart';
 import 'endless_runner_game.dart';
 import 'platform.dart';
@@ -54,14 +56,11 @@ class Enemy extends PositionComponent with HasGameRef<EndlessRunnerGame>, Collis
       canvas.drawRect(Rect.fromLTWH(10, -5, 15, 5), Paint()..color = Colors.grey); // Sword
     }
 
-    // Health bar — undo horizontal flip so it always drains left-to-right in screen space
-    canvas.save();
-    if (scale.x < 0) canvas.scale(-1.0, 1.0);
+    // Health bar
     final barWidth = size.x;
     final healthPercent = health / 3.0;
     canvas.drawRect(Rect.fromLTWH(-barWidth / 2, -30, barWidth, 4), Paint()..color = Colors.black45);
     canvas.drawRect(Rect.fromLTWH(-barWidth / 2, -30, barWidth * healthPercent, 4), Paint()..color = Colors.red);
-    canvas.restore();
   }
 
   @override
@@ -114,7 +113,7 @@ class Enemy extends PositionComponent with HasGameRef<EndlessRunnerGame>, Collis
         final platformTop = other.position.y; // Platform anchor is topLeft
 
         // Check if landing on top
-        if (velocity.y >= 0 && enemyBottom >= platformTop && (enemyBottom - platformTop) < 25) {
+        if (velocity.y >= 0 && enemyBottom >= platformTop && (enemyBottom - platformTop) < 15) {
           position.y = platformTop - size.y / 2;
           velocity.y = 0;
           isGrounded = true;
@@ -148,6 +147,8 @@ class Enemy extends PositionComponent with HasGameRef<EndlessRunnerGame>, Collis
       die();
     } else {
       _flashFrames = 10;
+      add(ColorEffect(Colors.white, EffectController(duration: 0.1, reverseDuration: 0.1)));
+      FlameAudio.play('400 Sounds Pack/Combat and Gore/crunch_quick.wav');
     }
   }
 
@@ -155,6 +156,7 @@ class Enemy extends PositionComponent with HasGameRef<EndlessRunnerGame>, Collis
     if (isDead) return;
     isDead = true;
     gameRef.score += 500;
+    FlameAudio.play('400 Sounds Pack/Retro/explosion_small.wav');
     removeFromParent();
   }
 }

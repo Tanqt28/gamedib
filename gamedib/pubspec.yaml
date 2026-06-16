@@ -9,6 +9,7 @@ dependencies:
   flutter:
     sdk: flutter
   flame: ^1.18.0
+  flame_audio: ^2.1.6
 
 dev_dependencies:
   flutter_test:
@@ -18,6 +19,8 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/images/bg_layer_1.png
-    - assets/images/bg_layer_2.png
-    - assets/images/bg_layer_3.png
+    - assets/images/
+    - assets/sounds/400 Sounds Pack/Retro/
+    - assets/sounds/400 Sounds Pack/Weapons/
+    - assets/sounds/400 Sounds Pack/Musical Effects/
+    - assets/sounds/400 Sounds Pack/UI/
