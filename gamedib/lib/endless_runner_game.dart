@@ -319,6 +319,20 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
 
   @override
   KeyEventResult onKeyEvent(KeyEvent event, Set<LogicalKeyboardKey> keysPressed) {
+    if (event is KeyDownEvent && keysPressed.contains(LogicalKeyboardKey.escape)) {
+      if (isStarted && !isGameOver) {
+        // Pause and return to main menu
+        isStarted = false;
+        horizontalInput = 0;
+        overlays.add('main_menu');
+      } else {
+        overlays.remove('main_menu');
+        overlays.remove('map_select');
+        overlays.remove('game_over');
+      }
+      return KeyEventResult.handled;
+    }
+
     if (!isStarted || isGameOver) {
       if (event is KeyDownEvent && keysPressed.contains(LogicalKeyboardKey.space)) {
         overlays.remove('main_menu');
