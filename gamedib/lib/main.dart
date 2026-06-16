@@ -24,6 +24,7 @@ void main() async {
             'main_menu': (context, game) => _MainMenuOverlay(game: game),
             'map_select': (context, game) => _MapSelectOverlay(game: game),
             'game_over': (context, game) => _GameOverOverlay(game: game),
+            'pause_menu': (context, game) => _PauseMenuOverlay(game: game),
           },
           initialActiveOverlays: const ['main_menu'],
         ),
@@ -347,6 +348,71 @@ class _GameOverOverlay extends StatelessWidget {
                   onPressed: () => game.resetToMenu(),
                 ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PauseMenuOverlay extends StatelessWidget {
+  final EndlessRunnerGame game;
+  const _PauseMenuOverlay({required this.game});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.black.withOpacity(0.65),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'PAUSED',
+              style: TextStyle(
+                fontSize: 52,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                fontFamily: 'monospace',
+                letterSpacing: 6,
+                shadows: [
+                  Shadow(color: Colors.blueAccent, blurRadius: 20),
+                  Shadow(color: Colors.black, blurRadius: 4, offset: Offset(3, 3)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 48),
+            _MenuButton(
+              label: '▶   RESUME',
+              color: Colors.green[600]!,
+              onPressed: () => game.resumeGame(),
+            ),
+            const SizedBox(height: 16),
+            _MenuButton(
+              label: '↺   PLAY AGAIN',
+              color: Colors.orange[700]!,
+              onPressed: () {
+                game.resumeGame();
+                game.startGame();
+              },
+            ),
+            const SizedBox(height: 16),
+            _MenuButton(
+              label: '⇄   CHANGE MAP',
+              color: Colors.blue[700]!,
+              onPressed: () {
+                game.resumeGame();
+                game.overlays.remove('main_menu');
+                game.isStarted = false;
+                game.overlays.add('map_select');
+              },
+            ),
+            const SizedBox(height: 16),
+            _MenuButton(
+              label: '⌂   MAIN MENU',
+              color: Colors.indigo[600]!,
+              onPressed: () => game.resetToMenu(),
             ),
           ],
         ),

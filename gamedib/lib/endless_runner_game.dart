@@ -156,10 +156,24 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
     _startLevel();
   }
 
+  void pauseGame() {
+    if (!isStarted || isGameOver) return;
+    horizontalInput = 0;
+    overlays.add('pause_menu');
+    pauseEngine();
+  }
+
+  void resumeGame() {
+    overlays.remove('pause_menu');
+    resumeEngine();
+  }
+
   void resetToMenu() {
     overlays.remove('game_over');
+    overlays.remove('pause_menu');
     overlays.add('main_menu');
 
+    if (paused) resumeEngine();
     isGameOver = false;
     isStarted = false;
     horizontalInput = 0;
@@ -320,15 +334,10 @@ class EndlessRunnerGame extends FlameGame with HasCollisionDetection, TapCallbac
   @override
   KeyEventResult onKeyEvent(KeyEvent event, Set<LogicalKeyboardKey> keysPressed) {
     if (event is KeyDownEvent && keysPressed.contains(LogicalKeyboardKey.escape)) {
-      if (isStarted && !isGameOver) {
-        // Pause and return to main menu
-        isStarted = false;
-        horizontalInput = 0;
-        overlays.add('main_menu');
-      } else {
-        overlays.remove('main_menu');
-        overlays.remove('map_select');
-        overlays.remove('game_over');
+      if (overlays.isActive('pause_menu')) {
+        resumeGame();
+      } else if (isStarted && !isGameOver) {
+        pauseGame();
       }
       return KeyEventResult.handled;
     }
