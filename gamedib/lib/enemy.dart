@@ -54,11 +54,14 @@ class Enemy extends PositionComponent with HasGameRef<EndlessRunnerGame>, Collis
       canvas.drawRect(Rect.fromLTWH(10, -5, 15, 5), Paint()..color = Colors.grey); // Sword
     }
 
-    // Health bar
+    // Health bar — undo horizontal flip so it always drains left-to-right in screen space
+    canvas.save();
+    if (scale.x < 0) canvas.scale(-1.0, 1.0);
     final barWidth = size.x;
     final healthPercent = health / 3.0;
     canvas.drawRect(Rect.fromLTWH(-barWidth / 2, -30, barWidth, 4), Paint()..color = Colors.black45);
     canvas.drawRect(Rect.fromLTWH(-barWidth / 2, -30, barWidth * healthPercent, 4), Paint()..color = Colors.red);
+    canvas.restore();
   }
 
   @override
